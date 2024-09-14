@@ -27,7 +27,7 @@ class GitParser {
                 @{ $true = '+{0}' -f [GitParser]::numTracked;   $false = '' }[[GitParser]::numTracked   -gt 0]
                 @{ $true = '?{0}' -f [GitParser]::numUntracked; $false = '' }[[GitParser]::numUntracked -gt 0]
                 @{ $true = ''; $false = 'No Remote!' }[[GitParser]::remoteBranch -eq [GitParser]::localBranch]
-            ) -join ", " -replace "(,\s*)+", ", ").Trim(", ")
+            ) -join ", " -replace "(,\s*)+", ", ").Trim(", ") | Where-Object {$_} #only if exists
             if($statusBadges.Count -gt 0){
                 $statusBadges = '>> {0} <' -f $statusBadges
                 return ('| {0}  {1}' -f [GitParser]::localBranch, $statusBadges)
