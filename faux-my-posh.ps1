@@ -260,7 +260,6 @@ function prompt {
         }
 
         if ($host.Name -notmatch 'ISE') {
-            # $themedPrompt = "{0}{1}{2}`n{3}" -f (@(
             $themedPrompt = (@(
                 $themedUser.GetThemedText()
                 $themedDirectory.GetThemedText()
