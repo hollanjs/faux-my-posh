@@ -1,3 +1,5 @@
+#Drop into any $profile.ps1
+
 Add-Type -Assembly System.Drawing
 
 class GitParser {
@@ -18,14 +20,14 @@ class GitParser {
 
     static [object] StatusToString(){
         if([GitParser]::showBadge){
-            $statusBadges = @(
+            $statusBadges = (@(
                 @{ $true = '*{0}' -f [GitParser]::numModified;  $false = '' }[[GitParser]::numModified  -gt 0]
                 @{ $true = '+{0}' -f [GitParser]::numTracked;   $false = '' }[[GitParser]::numTracked   -gt 0]
                 @{ $true = '?{0}' -f [GitParser]::numUntracked; $false = '' }[[GitParser]::numUntracked -gt 0]
                 @{ $true = ''; $false = 'No Remote!' }[[GitParser]::remoteBranch -eq [GitParser]::localBranch]
-            ) -join ", " -replace "(,\s*)+", ", " -replace "^, ", "" | Where-Object {$_}
+            ) -join ", " -replace "(,\s*)+", ", ").Trim(", ")
             if($statusBadges.Count -gt 0){
-                $statusBadges = '>> {0}' -f $statusBadges
+                $statusBadges = '>> {0} <' -f $statusBadges
                 return ('| {0}  {1}' -f [GitParser]::localBranch, $statusBadges)
             }
             return ('| {0}  ' -f [GitParser]::localBranch)
@@ -221,8 +223,12 @@ function prompt {
             [FMPColorTheme]::WriteToConsole($themedPrompt)
         }
         else {
-            "| {0} {1} {2} `n{3}" -f @(
-                $user
+            if($null -ne $gitBadge){
+                $gitBadge = $gitBadge.Replace("| ", "| git:")
+            }
+
+            "{0} {1}{2}`n{3}" -f @(
+                $user.Trim(" ")
                 $location
                 $gitBadge
                 $promptSymbol
