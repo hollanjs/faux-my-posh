@@ -19,6 +19,8 @@ class GitParser {
     }
 
     static [object] StatusToString(){
+        $statusBadges = $null
+        
         if([GitParser]::showBadge){
             $statusBadges = (@(
                 @{ $true = '*{0}' -f [GitParser]::numModified;  $false = '' }[[GitParser]::numModified  -gt 0]
