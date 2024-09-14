@@ -33,7 +33,7 @@ class GitParser {
                 return ('| {0}  {1}' -f [GitParser]::localBranch, $statusBadges)
             }
             return ('| {0}  ' -f [GitParser]::localBranch)
-        } 
+        }
         return $null
     }
 
@@ -163,6 +163,8 @@ class FMPColorTheme {
 # THEME SETUP
 $usernameTheme       = [FMPColorTheme]::new("DimGray", "White")
 $directoryTheme      = [FMPColorTheme]::new("AliceBlue", "DodgerBlue")
+$dateTheme           = [FMPColorTheme]::new("FloralWhite", "Tomato")
+$timeTheme           = [FMPColorTheme]::new("DimGray", "White")
 $gitGoodTheme        = [FMPColorTheme]::new("Gainsboro", "SeaGreen")
 $gitNoRemoteTheme    = [FMPColorTheme]::new("Gainsboro", "MediumPurple")
 $gitHasUpdatesTheme  = [FMPColorTheme]::new("Gainsboro", "Tomato")
@@ -189,12 +191,28 @@ function prompt {
         $gitBadge = [GitParser]::StatusToString()
         
         $promptSymbol = "PS> "
+
+        $datetime = Get-Date
+        $dateString = $datetime.ToString(' dddd, MMMM d ')
+        $timeString = $datetime.ToString(' h:mm tt ')
+
+        # below numbers are used to calculate padding to right align date/time blocks
+        $_linebuffer = $Host.UI.RawUI.BufferSize.Width
+        $_textbuffer  = (@(
+            $user
+            $location
+            $gitBadge
+            $dateString
+            $timeString
+        ) -join "").Length
         <########################################################################################>
 
 
         <####################################  Theme setup  #####################################>
         $themedUser      = [FMPThemedText]::new($user, $usernameTheme)
-        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)        
+        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)    
+        $themedDate      = [FMPThemedText]::new($dateString, $dateTheme)
+        $themedTime      = [FMPThemedText]::new($timeString, $timeTheme)    
         $themedGitBadge  = [FMPThemedText]::new($gitGoodTheme)
 
         if ($host.Name -notmatch 'ISE') {
@@ -214,13 +232,45 @@ function prompt {
     }
 
     Process {
+        # if not enough buffer to hold full prompt, shorten date string
+        if(($_linebuffer - $_textbuffer) -lt 0){
+            $shortDateString = $datetime.ToString(' MM/dd/yy ')
+            $themedDate.SetText($shortDateString)
+            $_textbuffer -= $dateString.Length - $shortDateString.Length
+        }
+
+        # if still not enough buffer, drop date altogether
+        if(($_linebuffer - $_textbuffer) -lt 0){
+            $themedDate.SetText($null)
+            $_textbuffer -= $shortDateString.Length
+        }
+
+        # if still not enough buffer, drop time as well
+        # you're pushing your luck at this point
+        if(($_linebuffer - $_textbuffer) -lt 0){
+            $themedTime.SetText($null)
+            $_textbuffer -= $timeString.Length
+        }
+
+        # if still not enough buffer, drop username
+        # at this point, if you break it, nothing will print...
+        if(($_linebuffer - $_textbuffer) -lt 0){
+            $themedUser.SetText($null)
+            $_textbuffer -= $user.Length
+        }
+
         if ($host.Name -notmatch 'ISE') {
-            $themedPrompt = "{0}{1}{2}`n{3}" -f (@(
+            # $themedPrompt = "{0}{1}{2}`n{3}" -f (@(
+            $themedPrompt = (@(
                 $themedUser.GetThemedText()
                 $themedDirectory.GetThemedText()
                 $themedGitBadge.GetThemedText()
-                $promptSymbol
-            ) | Where-Object {$_})
+                (' ' * ($_linebuffer - $_textbuffer))
+                $themedDate.GetThemedText()
+                $themedTime.GetThemedText()
+                [System.Environment]::NewLine
+                $promptSymbol 
+            ) | Where-Object {$_}) -join ""
 
             [FMPColorTheme]::WriteToConsole($themedPrompt)
         }
@@ -229,12 +279,17 @@ function prompt {
                 $gitBadge = $gitBadge.Replace("| ", "| git:")
             }
 
-            "{0} {1}{2}`n{3}" -f @(
+            @(
                 $user.Trim(" ")
+                " "
                 $location
                 $gitBadge
+                (' ' * ($_linebuffer - $_textbuffer))
+                $dateString
+                $timeString
+                [System.Environment]::NewLine
                 $promptSymbol
-            )
+            ) -join ""
         }
     }
 }
