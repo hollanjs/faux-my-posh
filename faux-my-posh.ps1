@@ -33,7 +33,7 @@ class GitParser {
                 return ('| {0}  {1}' -f [GitParser]::localBranch, $statusBadges)
             }
             return ('| {0}  ' -f [GitParser]::localBranch)
-        }
+        } 
         return $null
     }
 
