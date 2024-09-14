@@ -1,3 +1,5 @@
+Add-Type -Assembly System.Drawing
+
 class GitParser {
     static [string]   $localBranch
     static [string]   $remoteBranch
@@ -69,91 +71,98 @@ class GitParser {
 }
 
 
-function Get-ThemedText {
-  param
-  (
-      [System.String]
-      $text,
+class FMPThemedText{
+    [string]        $text
+    [FMPColorTheme] $theme
+    
+    [object] GetThemedText(){
+        if($null -eq $this.text){
+            return $null
+        }
+        return $this.theme.GetThemedText($this.text)
+    }
 
-      [ValidateSet("white", "black", "blue", "orange", "green", "purple", "darkorange", "darkgray", "darkred")]
-      [System.String]
-      $background,
+    [void] SetTheme([FMPColorTheme]$newTheme){
+        $this.theme = $newTheme
+    }
 
-      [ValidateSet("white", "black", "blue", "orange", "green", "purple", "darkorange", "darkgray", "darkred")]
-      [System.String]
-      $foreground,
+    [void] SetText([string]$text){
+        $this.text = $text
+    }
 
-      [switch]
-      $RESET
-  )
+    FMPThemedText([FMPColorTheme]$theme){
+        $this.theme = $theme
+    }
+    
+    FMPThemedText([string]$text, [FMPColorTheme]$theme){
+        $this.text  = $text
+        $this.theme = $theme
+    }
+}
 
-  Begin {
-      # rgb = @(r, g, b)
-      $colorOptions = @{
-          "white"      = @(255, 255, 255) -join ";"
-          "black"      = @(  0,   0,   0) -join ";"
-          "blue"       = @(  0, 135, 175) -join ";"
-          "orange"     = @(215,  95,   0) -join ";"
-          "green"      = @( 55, 133,   4) -join ";"
-          "purple"     = @(116,  77, 137) -join ";"
-          "darkorange" = @(169, 116,   0) -join ";"
-          "darkgray"   = @( 78,  78,  78) -join ";"
-          "darkred"    = @(140,   0,   0) -join ";"
-      }
+class FMPColorTheme {
+    #To see available colors to use, go to:
+    #    https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.brushes?view=windowsdesktop-8.0
+    [string] $foreground = $host.UI.RawUI.ForegroundColor
+    [string] $background = $host.UI.RawUI.BackgroundColor
 
-      $_tcfg = @(38, 2) -join ";"
-      $_tcbg = @(48, 2) -join ";"
-      $__tc  = "m"
+    static [char]   $CHAR_ESC   = [char]27
+    static [string] $SEQ_ESCAPE = "ESCAPEME"
+    
+    static [string] $colorizePattern = "$([FMPColorTheme]::SEQ_ESCAPE)[{0};{1}m"
+    
+    static [string] KnownColorToCliString([System.Drawing.KnownColor]$knownColor){
+        $color = [System.Drawing.Color]::FromKnownColor($knownColor)
+        return ($color.R, $color.G, $color.B -join ";")
+    }
+    
+    static [string] $resetString = '{0}{0}' -f ([FMPColorTheme]::colorizePattern -f $null, 0)
 
-      $r__foreground = "####"
-      $r__background = "!!!!"
-      $r__escape     = "ESCAPEME"
+    static [string] WriteToConsole([string]$ThemedText){
+        return ($ThemedText -replace [FMPColorTheme]::SEQ_ESCAPE, [FMPColorTheme]::CHAR_ESC)
+    }
 
-      $templateParts = @(
-          $r__escape
-          $_tcbg
-          $r__background
-          $__tc
-          $_tcfg
-          $r__foreground
-          $text
-      )
-      $colorTemplate = "{0}[{1};{2}{3}{0}[{4};{5}{3}{6}" -f $templateParts
-  }
+    [string] GetThemedText([string] $text){
+        $prefixForeground = @(38, 2) -join ";"
+        $prefixBackground = @(48, 2) -join ";"
 
-  Process {
-      if ($RESET) {
-          return $colorTemplate -replace $_tcbg, "" `
-              -replace $_tcfg, "" `
-              -replace $r__foreground, "0" `
-              -replace $r__background, "0"
-      }
+        $cliForeground = [FMPColorTheme]::KnownColorToCliString($this.foreground)
+        $cliBackground = [FMPColorTheme]::KnownColorToCliString($this.background)
 
-      return $colorTemplate.Replace($r__foreground, $colorOptions.$foreground).Replace($r__background, $colorOptions.$background)
-  }
+        $foregroundString = [FMPColorTheme]::colorizePattern -f $prefixForeground, $cliForeground
+        $backgroundString = [FMPColorTheme]::colorizePattern -f $prefixBackground, $cliBackground
+
+        return (@(
+            $foregroundString, 
+            $backgroundString,
+            $text,
+            [FMPColorTheme]::resetString
+        ) -join "")
+    }
+    
+    FMPColorTheme([System.Drawing.KnownColor] $ForegroundColor){
+        $this.foreground = $ForegroundColor
+    }
+    
+    FMPColorTheme([System.Drawing.KnownColor] $ForegroundColor, [System.Drawing.KnownColor] $BackgroundColor){
+        $this.foreground = $ForegroundColor
+        $this.background = $BackgroundColor
+    }
 }
 
 
-function Initialize-ThemedText {
-  param
-  (
-      [Parameter(Mandatory = $true,
-          ValueFromPipeline = $true)]
-      [System.String]
-      $ThemedText
-  )
-
-  $ESC = [char]27
-  $_escape = "ESCAPEME"
-
-  return $ThemedText.Replace($_escape, $ESC)
-}
-
+#THEME SETUP
+$usernameTheme       = [FMPColorTheme]::new("DimGray", "White")
+$directoryTheme      = [FMPColorTheme]::new("AliceBlue", "DodgerBlue")
+$gitGoodTheme        = [FMPColorTheme]::new("Gainsboro", "SeaGreen")
+$gitNoRemoteTheme    = [FMPColorTheme]::new("Gainsboro", "MediumPurple")
+$gitHasUpdatesTheme  = [FMPColorTheme]::new("Gainsboro", "Tomato")
 
 function prompt {
     param()
 
     Begin {
+        <############################  information gathering/setup  #############################>
         $user = ("    {0}@{1} " -f $env:USERNAME, $env:USERDOMAIN).ToLower()
 
         $numDirToShow = 3
@@ -164,39 +173,47 @@ function prompt {
             $location += "  "
         }
         else {
-            $location = "|>  {0} " -f (get-location).Path
+            $location = "|>  {0}  " -f (get-location).Path
         }
 
-
         $promptSymbol = "PS> "
+        <########################################################################################>
+
+
+        <####################################  Theme setup  #####################################>
+        $themedUser      = [FMPThemedText]::new($user, $usernameTheme)
+        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)
 
         # GIT STUFF
         [GitParser]::Update()
         $gitBadge = [GitParser]::StatusToString()
+        $themedGitBadge = [FMPThemedText]::new($gitGoodTheme)
         if ($host.Name -notmatch 'ISE') {
             if ([GitParser]::hasUncommitedChanges) {
-                $gitBadge = Get-ThemedText -text $gitBadge -background darkorange -foreground white
+                $themedGitBadge.SetText($gitBadge)
+                $themedGitBadge.SetTheme($gitHasUpdatesTheme)
             }
             elseif (-not [GitParser]::remotebranch) {
-                $gitBadge = Get-ThemedText -text $gitBadge -background purple -foreground white
+                $themedGitBadge.SetText($gitBadge)
+                $themedGitBadge.SetTheme($gitNoRemoteTheme)
             }
             else {
-                $gitBadge = Get-ThemedText -text $gitBadge -background green -foreground white
+                $themedGitBadge.SetText($gitBadge)
             }
         }
+        <########################################################################################>
     }
 
     Process {
         if ($host.Name -notmatch 'ISE') {
-            $themedPrompt = "{0} {1} {2}{3}`n{4}" -f (@(
-                (Get-ThemedText -text $user -background white -foreground darkgray)
-                (Get-ThemedText -text $location -background blue -foreground white)
-                $gitBadge
-                (Get-ThemedText -RESET)
+            $themedPrompt = "{0}{1}{2}`n{3}" -f (@(
+                $themedUser.GetThemedText()
+                $themedDirectory.GetThemedText()
+                $themedGitBadge.GetThemedText()
                 $promptSymbol
             ) | Where-Object {$_})
 
-            Initialize-ThemedText -ThemedText $themedPrompt
+            [FMPColorTheme]::WriteToConsole($themedPrompt)
         }
         else {
             "| {0} {1} {2} `n{3}" -f @(
