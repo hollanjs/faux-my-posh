@@ -82,6 +82,11 @@ class FMPThemedText{
         return $this.theme.GetThemedText($this.text)
     }
 
+    [void] WriteToConsole(){
+        #figure out better way to write from themed text class
+        #return value string
+    }
+
     [void] SetTheme([FMPColorTheme]$newTheme){
         $this.theme = $newTheme
     }
@@ -151,7 +156,7 @@ class FMPColorTheme {
 }
 
 
-#THEME SETUP
+# THEME SETUP
 $usernameTheme       = [FMPColorTheme]::new("DimGray", "White")
 $directoryTheme      = [FMPColorTheme]::new("AliceBlue", "DodgerBlue")
 $gitGoodTheme        = [FMPColorTheme]::new("Gainsboro", "SeaGreen")
@@ -176,18 +181,18 @@ function prompt {
             $location = "|>  {0}  " -f (get-location).Path
         }
 
+        [GitParser]::Update()
+        $gitBadge = [GitParser]::StatusToString()
+        
         $promptSymbol = "PS> "
         <########################################################################################>
 
 
         <####################################  Theme setup  #####################################>
         $themedUser      = [FMPThemedText]::new($user, $usernameTheme)
-        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)
+        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)        
+        $themedGitBadge  = [FMPThemedText]::new($gitGoodTheme)
 
-        # GIT STUFF
-        [GitParser]::Update()
-        $gitBadge = [GitParser]::StatusToString()
-        $themedGitBadge = [FMPThemedText]::new($gitGoodTheme)
         if ($host.Name -notmatch 'ISE') {
             if ([GitParser]::hasUncommitedChanges) {
                 $themedGitBadge.SetText($gitBadge)
