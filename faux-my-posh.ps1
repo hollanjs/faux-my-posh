@@ -448,12 +448,12 @@ $gitHasUpdatesTheme  = [FMPColorTheme]::new("Gainsboro", "Tomato")
 $themedUsernameConfig = @{
     text         = ("{0}@{1}" -f $env:USERNAME, $env:USERDOMAIN).ToLower()
     theme        = $usernameTheme
-    textTemplate = '    {0} '
+    textTemplate = '░░  {0} '
 }
 
 $themedDirectoryConfig = @{
     theme        = $directoryTheme
-    textTemplate = '|>  {0}  '
+    textTemplate = '|>  {0}  ░░'
     refreshScript = {
         $numDirToShow = 3
         $currPath     = (get-location).Path
@@ -484,7 +484,7 @@ $themedGitBadgeConfig = @{
 
 $themedDateConfig = @{
     theme        = $dateTheme
-    textTemplate = ' {0} '
+    textTemplate = '░░ {0} '
     refreshScript = {
         return (Get-Date).ToString('dddd, MMMM d')
     }
@@ -492,7 +492,7 @@ $themedDateConfig = @{
 
 $themedTimeConfig = @{
     theme        = $timeTheme
-    textTemplate = ' {0} '
+    textTemplate = ' {0} ░░'
     refreshScript = {
         return (Get-Date).ToString('h:mm tt')
     }
