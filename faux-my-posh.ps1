@@ -135,15 +135,15 @@ class FMPColor {
         return ($this.Red, $this.Green, $this.Blue -join ';')
     }
 
-    hidden [string] SetRGBFromKnownColor([System.Drawing.KnownColor]$knownColor){
+    hidden [void] SetRGBFromKnownColor([System.Drawing.KnownColor]$knownColor){
         $color = [System.Drawing.Color]::FromKnownColor($knownColor)
         $this.Red   = $color.R
         $this.Green = $color.G
         $this.Blue  = $color.B
     }
 
-    hidden [void] SetRGBFromHex ([$string]$hex){
-        $hr, $hg, $hb = $hexColorCode.Trim("#") -Split '(..)' -ne ''
+    hidden [void] SetRGBFromHex ([string]$hex){
+        $hr, $hg, $hb = $hex.Trim("#") -Split '(..)' -ne ''
         $this.Red   = [Convert]::ToInt32($hr, 16)
         $this.Green = [Convert]::ToInt32($hg, 16)
         $this.Blue  = [Convert]::ToInt32($hb, 16)
