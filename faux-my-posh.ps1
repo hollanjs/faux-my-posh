@@ -160,7 +160,7 @@ class FMPColor {
             $this.SetRGBFromHex($hexColorCode)
         }
         else{
-            throw 'input string does not match hex format: #ffffff or ffffff'
+            throw 'input string does not match hex format, ex: #ffffff or ffffff'
         }
     }
 
