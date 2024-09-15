@@ -30,9 +30,9 @@ class GitParser {
             ) -join ", " -replace "(,\s*)+", ", ").Trim(", ") | Where-Object {$_} #only if exists
             if($statusBadges.Count -gt 0){
                 $statusBadges = '>> {0} <' -f $statusBadges
-                return ('| {0}  {1}' -f [GitParser]::localBranch, $statusBadges)
+                return ('{0}  {1}' -f [GitParser]::localBranch, $statusBadges)
             }
-            return ('| {0}  ' -f [GitParser]::localBranch)
+            return ([GitParser]::localBranch)
         }
         return $null
     }
@@ -76,19 +76,18 @@ class GitParser {
 
 
 class FMPThemedText{
-    [string]        $text
-    [FMPColorTheme] $theme
+    hidden [string]        $text
+    hidden [FMPColorTheme] $theme
     
     [object] GetThemedText(){
-        if($null -eq $this.text){
+        if($null -eq $this.text -or $this.text -eq ''){
             return $null
         }
         return $this.theme.GetThemedText($this.text)
     }
 
-    [void] WriteToConsole(){
-        #figure out better way to write from themed text class
-        #return value string
+    [FMPColorTheme] GetTheme (){
+        return $this.theme
     }
 
     [void] SetTheme([FMPColorTheme]$newTheme){
@@ -99,39 +98,72 @@ class FMPThemedText{
         $this.text = $text
     }
 
-    FMPThemedText([FMPColorTheme]$theme){
+    hidden [void] Init([string]$text){
+        $this.Init($text, [FMPColorTheme]::new())
+        $this.theme.DisableTheme()
+    }
+
+    hidden [void] Init([FMPColorTheme]$theme){
+        $this.Init('', $theme)
+    }
+
+    hidden [void] Init([string]$text, [FMPColorTheme]$theme){
+        $this.text  = $text
         $this.theme = $theme
+    }
+
+    FMPThemedText([string]$text){
+        $this.Init($text)
+    }
+
+    FMPThemedText([FMPColorTheme]$theme){
+        $this.Init($theme)
     }
     
     FMPThemedText([string]$text, [FMPColorTheme]$theme){
-        $this.text  = $text
-        $this.theme = $theme
+        $this.Init($text, $theme)
     }
 }
 
 class FMPColorTheme {
     #To see available colors to use, go to:
     #    https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.brushes?view=windowsdesktop-8.0
-    [string] $foreground = $host.UI.RawUI.ForegroundColor
-    [string] $background = $host.UI.RawUI.BackgroundColor
+    hidden [string] $foreground = $host.UI.RawUI.ForegroundColor
+    hidden [string] $background = $host.UI.RawUI.BackgroundColor
+    hidden [bool]   $isDisabled  = $false
 
-    static [char]   $CHAR_ESC   = [char]27
-    static [string] $SEQ_ESCAPE = "ESCAPEME"
+    hidden static [char]   $CHAR_ESC   = [char]27
+    hidden static [string] $SEQ_ESCAPE = "ESCAPEME"
     
-    static [string] $colorizePattern = "$([FMPColorTheme]::SEQ_ESCAPE)[{0};{1}m"
+    hidden static [string] $colorizePattern = "$([FMPColorTheme]::SEQ_ESCAPE)[{0};{1}m"
     
-    static [string] KnownColorToCliString([System.Drawing.KnownColor]$knownColor){
+    hidden static [string] KnownColorToCliString([System.Drawing.KnownColor]$knownColor){
         $color = [System.Drawing.Color]::FromKnownColor($knownColor)
         return ($color.R, $color.G, $color.B -join ";")
     }
     
-    static [string] $resetString = '{0}{0}' -f ([FMPColorTheme]::colorizePattern -f $null, 0)
+    hidden static [string] $resetString = '{0}{0}' -f ([FMPColorTheme]::colorizePattern -f $null, 0)
 
     static [string] WriteToConsole([string]$ThemedText){
         return ($ThemedText -replace [FMPColorTheme]::SEQ_ESCAPE, [FMPColorTheme]::CHAR_ESC)
     }
 
+    [void] DisableTheme () {
+        $this.isDisabled = $true
+    }
+
+    [void] EnableTheme () {
+        $this.isDisabled = $false
+    }
+
     [string] GetThemedText([string] $text){
+        if($this.isDisabled){
+            return (@(
+                [FMPColorTheme]::resetString,
+                $text
+            ) -join "")
+        }
+
         $prefixForeground = @(38, 2) -join ";"
         $prefixBackground = @(48, 2) -join ";"
 
@@ -149,6 +181,10 @@ class FMPColorTheme {
         ) -join "")
     }
     
+    FMPColorTheme(){
+        # just use default initialization of current foreground and background colors
+    }
+
     FMPColorTheme([System.Drawing.KnownColor] $ForegroundColor){
         $this.foreground = $ForegroundColor
     }
@@ -160,7 +196,179 @@ class FMPColorTheme {
 }
 
 
-# THEME SETUP
+class FMPBlock {
+    hidden [string]        $text
+    hidden [FMPColorTheme] $theme
+    hidden [FMPThemedText] $themedText
+    hidden [string]        $textTemplate
+    hidden [scriptblock]   $refreshScript
+
+    hidden [bool]          $disableTheme = $false
+
+    [void] Update () {
+        $this.text = $this.refreshScript.Invoke()
+        
+        if($null -ne $this.text[0]){
+            $this.text = $this.textTemplate -f $this.text
+            $this.themedText = [FMPThemedText]::new($this.text, $this.theme)
+
+            if(-not $this.themedText){
+                [FMPThemedText]::new($this.text, $this.theme)
+            }
+            else{
+                $this.themedText.SetTheme($this.theme)
+            }
+        }
+    }
+
+    [object] GetText(){
+        if($null -eq $this.text -or $this.text -eq ''){
+            return $null
+        }
+        return $this.text
+    }
+
+    [object] GetThemedText(){
+        if($null -eq $this.text -or $this.text -eq ''){
+            return $null
+        }
+        return $this.themedText.GetThemedText()
+    }
+
+    [void] UpdateText ([string]$text){
+        $this.text = $text
+        $this.Update()
+    }
+
+    [void] UpdateTheme ([FMPColorTheme]$theme){
+        $this.theme = $theme
+        $this.Update()
+    }
+
+    [void] UpdateTextTemplate ([string]$textTemplate){
+        $this.textTemplate = $textTemplate
+        $this.Update()
+    }
+
+    [void] UpdateRefreshScript ([scriptblock]$refreshScript){
+        $this.refreshScript = $refreshScript
+        $this.Update()
+    }
+
+    static [void] DisableTheme ([FMPBlock]$block) {
+        $block.theme.DisableTheme.Invoke()
+        $block.Update()
+    }
+
+    static [void] EnableTheme ([FMPBlock]$block) {
+        $block.theme.EnableTheme.Invoke()
+        $block.Update()
+    }
+
+
+    hidden [scriptblock]   $defaultScriptBlock  = { if($this.text){ return $this.text } }
+    hidden [string]        $defaultTextTemplate = '{0}'
+    hidden [FMPColorTheme] $defaultTheme        = [FMPColorTheme]::New()
+
+    hidden Init ([string]$text) {
+        $this.Init($text, $this.defaultTheme, $this.defaultTextTemplate, $this.defaultScriptBlock)
+        [FMPBlock]::DisableTheme($this)
+    }
+
+    hidden Init ([string]$text, [FMPColorTheme]$theme) {
+        $this.Init($text, $theme, $this.defaultTextTemplate, $this.defaultScriptBlock)
+    }
+    
+    hidden Init ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate) {
+        $this.Init($text, $theme, $textTemplate, $this.defaultScriptBlock)
+    }
+
+    hidden Init ([string]$text, [FMPColorTheme]$theme, [scriptblock]$refreshScript) {
+        $this.Init($text, $theme, $this.defaultTextTemplate, $refreshScript)
+    }
+    
+    hidden Init ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate, [scriptblock]$refreshScript) {
+        $this.text = $text
+        $this.theme = $theme
+        $this.textTemplate = $textTemplate
+        $this.refreshScript = $refreshScript
+
+        # other values can count as valid, but break this class, so override if necessary
+        if($null -eq $this.refreshScript -or $this.refreshScript.ast.Extent.Text -eq "{}"){
+            $this.refreshScript = $this.defaultScriptBlock
+        }
+
+        if($this.textTemplate -eq ''){
+            $this.textTemplate = $this.defaultTextTemplate
+        }
+
+        $this.Update()
+    }
+
+    FMPBlock ([string]$text){
+        $this.Init($text)
+    }
+
+    FMPBlock ([string]$text, [FMPColorTheme]$theme){
+        $this.Init($text, $theme)
+    }
+
+    FMPBlock ([string]$text, [FMPColorTheme]$theme, [scriptblock]$refreshScript){
+        $this.Init($text, $theme, $refreshScript)
+    }
+    
+    FMPBlock ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate){
+        $this.Init($text, $theme, $textTemplate)
+    }
+
+    FMPBlock ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate, [scriptblock]$refreshScript){
+        $this.Init($text, $theme, $textTemplate, $refreshScript)
+    }
+}
+
+function New-FMPBlock {
+    param
+    (
+        [Parameter()]    
+        [string]
+        $text = '', 
+
+
+        [Parameter()]
+        [FMPColorTheme]
+        $theme, 
+
+
+        [Parameter()]
+        [string]
+        $textTemplate, 
+
+
+        [Parameter()]
+        [scriptblock]
+        $refreshScript
+    )
+
+    if($theme -and $textTemplate -and $refreshScript){
+        return [FMPBlock]::new($text, $theme, $textTemplate, $refreshScript)
+    }
+
+    if($theme -and $textTemplate){
+        return [FMPBlock]::new($text, $theme, $textTemplate)
+    }
+
+    if($theme-and $refreshScript){
+        return [FMPBlock]::new($text, $theme, $refreshScript)
+    }
+
+    if($theme){
+        return [FMPBlock]::new($text, $theme)
+    }
+
+    return [FMPBlock]::new($text)
+}
+
+# DECLARE THEMES
 $usernameTheme       = [FMPColorTheme]::new("DimGray", "White")
 $directoryTheme      = [FMPColorTheme]::new("AliceBlue", "DodgerBlue")
 $dateTheme           = [FMPColorTheme]::new("FloralWhite", "Tomato")
@@ -169,125 +377,170 @@ $gitGoodTheme        = [FMPColorTheme]::new("Gainsboro", "SeaGreen")
 $gitNoRemoteTheme    = [FMPColorTheme]::new("Gainsboro", "MediumPurple")
 $gitHasUpdatesTheme  = [FMPColorTheme]::new("Gainsboro", "Tomato")
 
+<#
+    $themedExampleConfig = @{
+        text         = ''
+        theme        = [FMPColorTheme]::new()
+        textTemplate = $null
+        refreshScript = $null
+    }
+#>
+
+$themedUsernameConfig = @{
+    text         = ("{0}@{1}" -f $env:USERNAME, $env:USERDOMAIN).ToLower()
+    theme        = $usernameTheme
+    textTemplate = '    {0} '
+}
+
+$themedDirectoryConfig = @{
+    theme        = $directoryTheme
+    textTemplate = '|>  {0}  '
+    refreshScript = {
+        $numDirToShow = 3
+        $currPath     = (get-location).Path
+        $splitPath    = $currPath.Split("\")
+        
+        if ($splitPath.Count -gt 3) {
+            $bottomLevelParentDirs = $splitPath[($splitPath.Count - $numDirToShow)..$splitPath.Count]
+            $currPath = @(
+                "..."
+                ($bottomLevelParentDirs -join "\")
+                "  "
+                ) -join ""
+        }
+        
+        return $currPath
+    }
+}
+
+
+$themedGitBadgeConfig = @{
+    theme        = $gitGoodTheme
+    textTemplate = '| {0} '
+    refreshScript = {
+        return [GitParser]::StatusToString()
+    }
+}
+
+
+$themedDateConfig = @{
+    theme        = $dateTheme
+    textTemplate = ' {0} '
+    refreshScript = {
+        return (Get-Date).ToString('dddd, MMMM d')
+    }
+}
+
+$themedTimeConfig = @{
+    theme        = $timeTheme
+    textTemplate = ' {0} '
+    refreshScript = {
+        return (Get-Date).ToString('h:mm tt')
+    }
+}
+
+$themedPromptSymbolConfig = @{
+    text = 'PS> '
+}
+
+
+$user         = New-FMPBlock @themedUsernameConfig
+$location     = New-FMPBlock @themedDirectoryConfig
+$date         = New-FMPBlock @themedDateConfig
+$time         = New-FMPBlock @themedTimeConfig
+$gitBadge     = New-FMPBlock @themedGitBadgeConfig
+$promptSymbol = New-FMPBlock @themedPromptSymbolConfig
+
+
 function prompt {
     param()
 
-    Begin {
-        <############################  information gathering/setup  #############################>
-        $user = ("    {0}@{1} " -f $env:USERNAME, $env:USERDOMAIN).ToLower()
-
-        $numDirToShow = 3
-        $splitPath = (get-location).Path.Split("\")
-        if ($splitPath.Count -gt 3) {
-            $bottomLevelParentDirs = $splitPath[($splitPath.Count - $numDirToShow)..$splitPath.Count]
-            $location = (, "|> ..." + $bottomLevelParentDirs) -join "\"
-            $location += "  "
-        }
-        else {
-            $location = "|>  {0}  " -f (get-location).Path
-        }
-
+    Begin {        
         [GitParser]::Update()
-        $gitBadge = [GitParser]::StatusToString()
-        
-        $promptSymbol = "PS> "
+        $location.Update()
+        $date.Update()
+        $time.Update()
 
-        $datetime = Get-Date
-        $dateString = $datetime.ToString(' dddd, MMMM d ')
-        $timeString = $datetime.ToString(' h:mm tt ')
+        if ([GitParser]::hasUncommitedChanges) {
+            $gitBadge.UpdateTheme($gitHasUpdatesTheme)
+        }
+        elseif (-not [GitParser]::remotebranch) {
+            $gitBadge.UpdateTheme($gitNoRemoteTheme)
+        } 
+        else {
+            $gitBadge.UpdateTheme($gitGoodTheme)
+        }
+
 
         # below numbers are used to calculate padding to right align date/time blocks
         $_linebuffer = $Host.UI.RawUI.BufferSize.Width
         $_textbuffer  = (@(
-            $user
-            $location
-            $gitBadge
-            $dateString
-            $timeString
+            $user.GetText()
+            $location.GetText()
+            $gitBadge.GetText()
+            $date.GetText()
+            $time.GetText()
         ) -join "").Length
-        <########################################################################################>
 
-
-        <####################################  Theme setup  #####################################>
-        $themedUser      = [FMPThemedText]::new($user, $usernameTheme)
-        $themedDirectory = [FMPThemedText]::new($location, $directoryTheme)    
-        $themedDate      = [FMPThemedText]::new($dateString, $dateTheme)
-        $themedTime      = [FMPThemedText]::new($timeString, $timeTheme)    
-        $themedGitBadge  = [FMPThemedText]::new($gitGoodTheme)
-
-        if ($host.Name -notmatch 'ISE') {
-            if ([GitParser]::hasUncommitedChanges) {
-                $themedGitBadge.SetText($gitBadge)
-                $themedGitBadge.SetTheme($gitHasUpdatesTheme)
-            }
-            elseif (-not [GitParser]::remotebranch) {
-                $themedGitBadge.SetText($gitBadge)
-                $themedGitBadge.SetTheme($gitNoRemoteTheme)
-            }
-            else {
-                $themedGitBadge.SetText($gitBadge)
-            }
-        }
-        <########################################################################################>
-    }
-
-    Process {
         # if not enough buffer to hold full prompt, shorten date string
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $shortDateString = $datetime.ToString(' MM/dd/yy ')
-            $themedDate.SetText($shortDateString)
-            $_textbuffer -= $dateString.Length - $shortDateString.Length
+            $oldDateLength = $date.GetText().Length #caching value before udpate for diff
+            $date.UpdateRefreshScript({return (Get-Date).ToString('MM/dd/yy')})
+            $newDateLength = $date.GetText().Length #for readability
+            $_textbuffer -= $oldDateLength - $newDateLength #subtract difference in lengths after update from buffer
         }
 
         # if still not enough buffer, drop date altogether
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $themedDate.SetText($null)
-            $_textbuffer -= $shortDateString.Length
+            $_textbuffer -= $date.GetText().Length
+            $date.UpdateRefreshScript({return ''})
         }
 
         # if still not enough buffer, drop time as well
         # you're pushing your luck at this point
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $themedTime.SetText($null)
-            $_textbuffer -= $timeString.Length
+            $_textbuffer -= $time.GetText().Length
+            $time.UpdateRefreshScript({return ''})
         }
 
         # if still not enough buffer, drop username
         # at this point, if you break it, nothing will print...
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $themedUser.SetText($null)
-            $_textbuffer -= $user.Length
+            $_textbuffer -= $user.GetText().Length
+            $user.UpdateRefreshScript({''})
         }
+    }
 
+    Process {
         if ($host.Name -notmatch 'ISE') {
             $themedPrompt = (@(
-                $themedUser.GetThemedText()
-                $themedDirectory.GetThemedText()
-                $themedGitBadge.GetThemedText()
+                $user.GetThemedText()
+                $location.GetThemedText()
+                $gitBadge.GetThemedText()
                 (' ' * ($_linebuffer - $_textbuffer))
-                $themedDate.GetThemedText()
-                $themedTime.GetThemedText()
+                $date.GetThemedText()
+                $time.GetThemedText()
                 [System.Environment]::NewLine
-                $promptSymbol 
+                $promptSymbol.GetThemedText()
             ) | Where-Object {$_}) -join ""
 
             [FMPColorTheme]::WriteToConsole($themedPrompt)
         }
         else {
-            if($null -ne $gitBadge){
-                $gitBadge = $gitBadge.Replace("| ", "| git:")
-            }
+
+            $gitBadge.UpdateTextTemplate('| git:{0}')
+            $user.UpdateTextTemplate('{0}')
 
             @(
-                $user.Trim(" ")
+                $user.GetText()
                 " "
-                $location
-                $gitBadge
+                $location.GetText()
+                $gitBadge.GetText()
                 (' ' * ($_linebuffer - $_textbuffer))
-                $dateString
-                $timeString
                 [System.Environment]::NewLine
-                $promptSymbol
+                $date.GetText()
+                $time.GetText()
+                $promptSymbol.GetText()
             ) -join ""
         }
     }
