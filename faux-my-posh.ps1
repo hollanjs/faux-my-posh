@@ -125,6 +125,51 @@ class FMPThemedText{
     }
 }
 
+
+class FMPColor {
+    [int32] $Red
+    [int32] $Green
+    [int32] $Blue
+
+    [string] GetCliColorCode () {
+        return ($this.Red, $this.Green, $this.Blue -join ';')
+    }
+
+    hidden [string] SetRGBFromKnownColor([System.Drawing.KnownColor]$knownColor){
+        $color = [System.Drawing.Color]::FromKnownColor($knownColor)
+        $this.Red   = $color.R
+        $this.Green = $color.G
+        $this.Blue  = $color.B
+    }
+
+    hidden [void] SetRGBFromHex ([$string]$hex){
+        $hr, $hg, $hb = $hexColorCode.Trim("#") -Split '(..)' -ne ''
+        $this.Red   = [Convert]::ToInt32($hr, 16)
+        $this.Green = [Convert]::ToInt32($hg, 16)
+        $this.Blue  = [Convert]::ToInt32($hb, 16)
+    }
+
+    FMPColor([string]$Red, [string]$Green, [string]$Blue){
+        $this.Red   = $Red
+        $this.Green = $Green
+        $this.Blue  = $Blue
+    }
+
+    FMPColor([string]$hexColorCode){
+        if($hexColorCode -match '(#)?[0-9a-f]{6}'){
+            $this.SetRGBFromHex($hexColorCode)
+        }
+        else{
+            throw 'input string does not match hex format: #ffffff or ffffff'
+        }
+    }
+
+    FMPColor([System.Drawing.KnownColor]$knownColor){
+        $this.SetRGBFromKnownColor($knownColor)
+    }
+}
+
+
 class FMPColorTheme {
     #To see available colors to use, go to:
     #    https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.brushes?view=windowsdesktop-8.0
