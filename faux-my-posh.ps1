@@ -128,6 +128,12 @@ class FMPThemedText{
 class FMPColorTheme {
     #To see available colors to use, go to:
     #    https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.brushes?view=windowsdesktop-8.0
+    #### turn reset into a single reset
+    #### make hard reset a double reset
+    #### set default colors to reset
+    #### create enum for foreground and background 
+    #### create constructor for enum to allow just foreground or background to be set
+    #### verify replacing color with reset disables just that specific layer
     hidden [string] $foreground = $host.UI.RawUI.ForegroundColor
     hidden [string] $background = $host.UI.RawUI.BackgroundColor
     hidden [bool]   $isDisabled  = $false
