@@ -200,6 +200,7 @@ class FMPBlock {
     hidden [string]        $text
     hidden [FMPColorTheme] $theme
     hidden [FMPThemedText] $themedText
+    hidden [string]        $templatedText
     hidden [string]        $textTemplate
     hidden [scriptblock]   $refreshScript
 
@@ -209,8 +210,8 @@ class FMPBlock {
         $this.text = $this.refreshScript.Invoke()
         
         if($null -ne $this.text[0]){
-            $this.text = $this.textTemplate -f $this.text
-            $this.themedText = [FMPThemedText]::new($this.text, $this.theme)
+            $this.templatedText = $this.textTemplate -f $this.text
+            $this.themedText = [FMPThemedText]::new($this.templatedText, $this.theme)
 
             if(-not $this.themedText){
                 [FMPThemedText]::new($this.text, $this.theme)
@@ -235,6 +236,13 @@ class FMPBlock {
         return $this.themedText.GetThemedText()
     }
 
+    [object] GetTemplatedText(){
+        if($null -eq $this.text -or $this.text -eq ''){
+            return $null
+        }
+        return $this.templatedText
+    }
+
     [void] UpdateText ([string]$text){
         $this.text = $text
         $this.Update()
@@ -257,12 +265,12 @@ class FMPBlock {
 
     static [void] DisableTheme ([FMPBlock]$block) {
         $block.theme.DisableTheme.Invoke()
-        $block.Update()
+        $block.Update.Invoke()
     }
 
     static [void] EnableTheme ([FMPBlock]$block) {
         $block.theme.EnableTheme.Invoke()
-        $block.Update()
+        $block.Update.Invoke()
     }
 
 
@@ -456,57 +464,68 @@ function prompt {
     param()
 
     Begin {        
+        #update everything
         [GitParser]::Update()
+        $user.update()
         $location.Update()
         $date.Update()
         $time.Update()
+        $promptSymbol.Update()
 
-        if ([GitParser]::hasUncommitedChanges) {
-            $gitBadge.UpdateTheme($gitHasUpdatesTheme)
+
+        #changes based on environment
+        if ($host.Name -notmatch 'ISE') {
+            if ([GitParser]::hasUncommitedChanges) {
+                $gitBadge.UpdateTheme($gitHasUpdatesTheme)
+            }
+            elseif (-not [GitParser]::remotebranch) {
+                $gitBadge.UpdateTheme($gitNoRemoteTheme)
+            } 
+            else {
+                $gitBadge.UpdateTheme($gitGoodTheme)
+            }
         }
-        elseif (-not [GitParser]::remotebranch) {
-            $gitBadge.UpdateTheme($gitNoRemoteTheme)
-        } 
         else {
-            $gitBadge.UpdateTheme($gitGoodTheme)
+            $gitBadge.UpdateTextTemplate('| git:{0}')
+            $user.UpdateTextTemplate('{0}')
         }
 
 
         # below numbers are used to calculate padding to right align date/time blocks
         $_linebuffer = $Host.UI.RawUI.BufferSize.Width
         $_textbuffer  = (@(
-            $user.GetText()
-            $location.GetText()
-            $gitBadge.GetText()
-            $date.GetText()
-            $time.GetText()
+            $user.GetTemplatedText()
+            $location.GetTemplatedText()
+            $gitBadge.GetTemplatedText()
+            $date.GetTemplatedText()
+            $time.GetTemplatedText()
         ) -join "").Length
 
         # if not enough buffer to hold full prompt, shorten date string
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $oldDateLength = $date.GetText().Length #caching value before udpate for diff
+            $oldDateLength = $date.GetTemplatedText().Length #caching value before udpate for diff
             $date.UpdateRefreshScript({return (Get-Date).ToString('MM/dd/yy')})
-            $newDateLength = $date.GetText().Length #for readability
+            $newDateLength = $date.GetTemplatedText().Length #for readability
             $_textbuffer -= $oldDateLength - $newDateLength #subtract difference in lengths after update from buffer
         }
 
         # if still not enough buffer, drop date altogether
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $_textbuffer -= $date.GetText().Length
+            $_textbuffer -= $date.GetTemplatedText().Length
             $date.UpdateRefreshScript({return ''})
         }
 
         # if still not enough buffer, drop time as well
         # you're pushing your luck at this point
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $_textbuffer -= $time.GetText().Length
+            $_textbuffer -= $time.GetTemplatedText().Length
             $time.UpdateRefreshScript({return ''})
         }
 
         # if still not enough buffer, drop username
         # at this point, if you break it, nothing will print...
         if(($_linebuffer - $_textbuffer) -lt 0){
-            $_textbuffer -= $user.GetText().Length
+            $_textbuffer -= $user.GetTemplatedText().Length
             $user.UpdateRefreshScript({''})
         }
     }
@@ -527,20 +546,16 @@ function prompt {
             [FMPColorTheme]::WriteToConsole($themedPrompt)
         }
         else {
-
-            $gitBadge.UpdateTextTemplate('| git:{0}')
-            $user.UpdateTextTemplate('{0}')
-
             @(
-                $user.GetText()
+                $user.GetTemplatedText()
                 " "
-                $location.GetText()
-                $gitBadge.GetText()
+                $location.GetTemplatedText()
+                $gitBadge.GetTemplatedText()
                 (' ' * ($_linebuffer - $_textbuffer))
+                $date.GetTemplatedText()
+                $time.GetTemplatedText()
                 [System.Environment]::NewLine
-                $date.GetText()
-                $time.GetText()
-                $promptSymbol.GetText()
+                $promptSymbol.GetTemplatedText()
             ) -join ""
         }
     }
