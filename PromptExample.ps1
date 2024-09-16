@@ -1,9 +1,6 @@
-#import module
-Import-Module -Name 'FauxMyPosh'
-
-#import configuration and cmdlet containing logic
+#import configuration and cmdlet containing logic and module import
 # place in same directory as profile.ps1
-. '.\FMPConfigExample.ps1.psm1'
+. '.\FMPConfigExample.ps1'
 
 # override Prompt() function in your profile.ps1  [see $PROFILE]
 function Prompt(){

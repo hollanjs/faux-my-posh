@@ -1,3 +1,6 @@
+#import module
+Import-Module -Name 'FauxMyPosh'
+
 # DECLARE COLOR PALETTE
 $White     = [FMPColor]::new("White")
 $CoolWhite = [FMPColor]::new("AliceBlue")
