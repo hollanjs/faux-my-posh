@@ -18,6 +18,11 @@
   - [ ] refresh scripts should have heirarchy
   - [ ] fallbacks should check fmpblock if important
     - [ ] if fmpblock not important, and there are no more fallback refreshscripts, remove block based on heirarchy as cli width becomes increasingly smaller
+       
+- [ ] create serialization functionality that exports prompt configurations to xml file
+- [ ] create deserialization functionality to import xml files
+- [ ] create a DEFAULT configuration that users can import via `Import-DefaultFMPConfiguration`
+  - [ ] Users should be able to update the default theme from there if they want and override funcationlity or colors
 
 ## Documentation
 
@@ -28,3 +33,16 @@
 
 ## GitParser
 - [ ] add behind/ahead logic
+
+## Classes
+
+- [ ] break apart classes into individual files in a subfolder called classes
+- [ ] import all classes in via root psm1 file
+
+##  Cmdlets
+- [ ] move cmdlets into public and private folders
+- [ ] import all public and private classes via root psm1 file
+
+## PSD
+
+- [ ] expose only classes and public functions
