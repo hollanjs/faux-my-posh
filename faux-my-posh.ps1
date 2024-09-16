@@ -13,10 +13,12 @@ class GitParser {
     static [bool]     $showBadge
     static [bool]     $hasUncommitedChanges
 
+
     static [bool] IsGitEnabled(){
         git rev-parse 2>$null
         return $?
     }
+
 
     static [object] StatusToString(){
         $statusBadges = $null
@@ -37,6 +39,7 @@ class GitParser {
         return $null
     }
 
+
     static [void] CheckRemote (){
         if (-not [GitParser]::remoteBranch -or [GitParser]::remoteBranch -ne [GitParser]::localBranch) {
             [GitParser]::remoteBranch = $_branches = $_branch = $null
@@ -53,6 +56,7 @@ class GitParser {
             }
         }
     }
+
 
     static [void] Update(){
         [GitParser]::showBadge = [GitParser]::IsGitEnabled()
@@ -79,47 +83,57 @@ class FMPThemedText{
     hidden [string]        $text
     hidden [FMPColorTheme] $theme
     
+
     [object] GetThemedText(){
         if($null -eq $this.text -or $this.text -eq ''){
             return $null
         }
-        return $this.theme.GetThemedText($this.text)
+        return $this.theme.ConvertToThemedText($this.text)
     }
+
 
     [FMPColorTheme] GetTheme (){
         return $this.theme
     }
 
+
     [void] SetTheme([FMPColorTheme]$newTheme){
         $this.theme = $newTheme
     }
 
+
     [void] SetText([string]$text){
         $this.text = $text
     }
+
 
     hidden [void] Init([string]$text){
         $this.Init($text, [FMPColorTheme]::new())
         $this.theme.DisableTheme()
     }
 
+
     hidden [void] Init([FMPColorTheme]$theme){
         $this.Init('', $theme)
     }
+
 
     hidden [void] Init([string]$text, [FMPColorTheme]$theme){
         $this.text  = $text
         $this.theme = $theme
     }
 
+
     FMPThemedText([string]$text){
         $this.Init($text)
     }
+
 
     FMPThemedText([FMPColorTheme]$theme){
         $this.Init($theme)
     }
     
+
     FMPThemedText([string]$text, [FMPColorTheme]$theme){
         $this.Init($text, $theme)
     }
@@ -127,123 +141,205 @@ class FMPThemedText{
 
 
 class FMPColor {
-    [int32] $Red
-    [int32] $Green
-    [int32] $Blue
+    hidden [System.Drawing.Color] $_color = [System.Drawing.Color]::new()
 
-    [string] GetCliColorCode () {
-        return ($this.Red, $this.Green, $this.Blue -join ';')
+
+    [bool] IsEmpty(){
+        return $this._color.IsEmpty
     }
 
-    hidden [void] SetRGBFromKnownColor([System.Drawing.KnownColor]$knownColor){
-        $color = [System.Drawing.Color]::FromKnownColor($knownColor)
-        $this.Red   = $color.R
-        $this.Green = $color.G
-        $this.Blue  = $color.B
+
+    [object] GetRGB () {
+        return [PSCustomObject]@{
+            Red   = $this._color.R
+            Green = $this._color.G
+            Blue  = $this._color.B
+        }
     }
 
-    hidden [void] SetRGBFromHex ([string]$hex){
-        $hr, $hg, $hb = $hex.Trim("#") -Split '(..)' -ne ''
-        $this.Red   = [Convert]::ToInt32($hr, 16)
-        $this.Green = [Convert]::ToInt32($hg, 16)
-        $this.Blue  = [Convert]::ToInt32($hb, 16)
+
+    [string] ToCliString () { 
+        return ($this._color.R, $this._color.G, $this._color.B -join ';') 
+    }
+    
+
+    [string] ToString () {
+        return ('{0} [R={1}, G={2}, B={3}]' -f @(
+            $this._color.Name
+            $this._color.R
+            $this._color.G
+            $this._color.B
+        ))
+    }   
+
+
+    [void] SetRed ([int32]$value){
+        $this._color.R = $value
     }
 
-    FMPColor([string]$Red, [string]$Green, [string]$Blue){
-        $this.Red   = $Red
-        $this.Green = $Green
-        $this.Blue  = $Blue
+
+    [void] SetGreen ([int32]$value){
+        $this._color.G = $value
     }
+
+
+    [void] SetBlue ([int32]$value){
+        $this._color.B = $value
+    }
+
+
+    [void] SetToKnownColor ([System.Drawing.KnownColor]$knownColor){
+        $this._color = [System.Drawing.Color]::FromKnownColor($knownColor)
+    }
+
+
+    [void] SetToRGB ([int32]$Red, [int32]$Green, [int32]$Blue){
+        $this._color = [System.Drawing.Color]::FromArgb($Red, $Green, $Blue)
+    }
+
+
+    [void] SetToHex ([string]$hexColorCode){
+        $this._color = [System.Drawing.ColorTranslator]::FromHtml($hexColorCode)
+    }
+    
+
+    FMPColor(){
+        # initialize as empty color object
+    }
+    
+
+    FMPColor([int32]$Red, [int32]$Green, [int32]$Blue){
+        $this._color = [System.Drawing.Color]::FromArgb($Red, $Green, $Blue)
+    }
+    
 
     FMPColor([string]$hexColorCode){
-        if($hexColorCode -match '(#)?[0-9a-f]{6}'){
-            $this.SetRGBFromHex($hexColorCode)
-        }
-        else{
-            throw 'input string does not match hex format, ex: #ffffff or ffffff'
-        }
+        $this._color = [System.Drawing.ColorTranslator]::FromHtml($hexColorCode)
     }
+    
 
     FMPColor([System.Drawing.KnownColor]$knownColor){
-        $this.SetRGBFromKnownColor($knownColor)
+        $this._color = [System.Drawing.Color]::FromKnownColor($knownColor)
     }
+}
+
+
+enum ColorLayer {
+    foreground
+    background
 }
 
 
 class FMPColorTheme {
     #To see available colors to use, go to:
     #    https://learn.microsoft.com/en-us/dotnet/api/system.windows.media.brushes?view=windowsdesktop-8.0
-    #### turn reset into a single reset
-    #### make hard reset a double reset
-    #### set default colors to reset
-    #### create enum for foreground and background 
-    #### create constructor for enum to allow just foreground or background to be set
-    #### verify replacing color with reset disables just that specific layer
-    hidden [string] $foreground = $host.UI.RawUI.ForegroundColor
-    hidden [string] $background = $host.UI.RawUI.BackgroundColor
-    hidden [bool]   $isDisabled  = $false
-
-    hidden static [char]   $CHAR_ESC   = [char]27
-    hidden static [string] $SEQ_ESCAPE = "ESCAPEME"
     
-    hidden static [string] $colorizePattern = "$([FMPColorTheme]::SEQ_ESCAPE)[{0};{1}m"
+    hidden        [FMPColor] $foreground      = [FMPColor]::new()
+    hidden        [FMPColor] $background      = [FMPColor]::new()
+    hidden        [bool]     $isDisabled      = $false
+    hidden static [char]     $CHAR_ESC        = [char]27
+    hidden static [string]   $SEQ_ESCAPE      = 'ESCAPEME'
+    hidden static [string]   $FORE_PREFIX     = @(38, 2) -join ";"
+    hidden static [string]   $BACK_PREFIX     = @(48, 2) -join ";"
+    hidden static [string]   $colorizePattern = "$([FMPColorTheme]::SEQ_ESCAPE)[{0};{1}m"
+    hidden static [string]   $reset           = '{0}' -f ([FMPColorTheme]::colorizePattern -f $null, 0)
+    hidden static [string]   $hardReset       = '{0}{0}' -f ([FMPColorTheme]::reset)
     
-    hidden static [string] KnownColorToCliString([System.Drawing.KnownColor]$knownColor){
-        $color = [System.Drawing.Color]::FromKnownColor($knownColor)
-        return ($color.R, $color.G, $color.B -join ";")
+    
+    static [string] CliColorReset (){
+        return ([FMPColorTheme]::hardReset -replace [FMPColorTheme]::SEQ_ESCAPE, [FMPColorTheme]::CHAR_ESC)
     }
     
-    hidden static [string] $resetString = '{0}{0}' -f ([FMPColorTheme]::colorizePattern -f $null, 0)
 
-    static [string] WriteToConsole([string]$ThemedText){
-        return ($ThemedText -replace [FMPColorTheme]::SEQ_ESCAPE, [FMPColorTheme]::CHAR_ESC)
+    static [string] WriteToConsole([FMPThemedText]$ThemedText){
+        return ($ThemedText.GetThemedText() -replace [FMPColorTheme]::SEQ_ESCAPE, [FMPColorTheme]::CHAR_ESC)
     }
+    
+
+    [string] ToString() {
+        return ('Foreground: {0}`nBackground: {1}' -f @(
+            @{$true = 'Empty'; $false = $this.foreground}[$this.foreground.IsEmpty()]
+            @{$true = 'Empty'; $false = $this.background}[$this.background.IsEmpty()]
+        ))
+    }
+    
+
+    [void] ColorReset ([ColorLayer]$layer){
+        switch($layer){
+            'foreground' { $this.foreground = [FMPColor]::new() }
+            'background' { $this.background = [FMPColor]::new() }
+        }
+    }
+
 
     [void] DisableTheme () {
         $this.isDisabled = $true
     }
 
+
     [void] EnableTheme () {
         $this.isDisabled = $false
     }
 
-    [string] GetThemedText([string] $text){
+
+    [string] ConvertToThemedText([string] $text){
         if($this.isDisabled){
             return (@(
-                [FMPColorTheme]::resetString,
+                [FMPColorTheme]::hardReset,
                 $text
             ) -join "")
         }
 
-        $prefixForeground = @(38, 2) -join ";"
-        $prefixBackground = @(48, 2) -join ";"
+        if($this.foreground.IsEmpty() -and $this.background.IsEmpty()){
+            return ([FMPColorTheme]::hardReset, $text -join "")
+        }
 
-        $cliForeground = [FMPColorTheme]::KnownColorToCliString($this.foreground)
-        $cliBackground = [FMPColorTheme]::KnownColorToCliString($this.background)
-
-        $foregroundString = [FMPColorTheme]::colorizePattern -f $prefixForeground, $cliForeground
-        $backgroundString = [FMPColorTheme]::colorizePattern -f $prefixBackground, $cliBackground
+        $foregroundCliString = $this.foreground.ToCliString()
+        if($this.foreground.IsEmpty()){
+            $foregroundCliString = [FMPColorTheme]::reset
+        }
+        
+        $foregroundString = [FMPColorTheme]::colorizePattern -f @(
+            [FMPColorTheme]::FORE_PREFIX, 
+            $foregroundCliString
+            )
+            
+            $backgroundCliString = $this.background.ToCliString()
+            if($this.background.IsEmpty()){
+                $backgroundCliString = [FMPColorTheme]::reset
+            }
+        $backgroundString = [FMPColorTheme]::colorizePattern -f @(
+                                [FMPColorTheme]::BACK_PREFIX, 
+                                $backgroundCliString
+                            )
 
         return (@(
             $foregroundString, 
             $backgroundString,
             $text,
-            [FMPColorTheme]::resetString
+            [FMPColorTheme]::hardReset
         ) -join "")
     }
     
+
     FMPColorTheme(){
-        # just use default initialization of current foreground and background colors
+        # just use default initialization of empty foreground and background colors
     }
 
-    FMPColorTheme([System.Drawing.KnownColor] $ForegroundColor){
-        $this.foreground = $ForegroundColor
+
+    FMPColorTheme([ColorLayer] $layer, [FMPColor] $color){
+        switch($layer){
+            'foreground' { $this.foreground = $color }
+            'background' { $this.background = $color }
+        }
     }
     
-    FMPColorTheme([System.Drawing.KnownColor] $ForegroundColor, [System.Drawing.KnownColor] $BackgroundColor){
+
+    FMPColorTheme([FMPColor] $ForegroundColor, [FMPColor] $BackgroundColor){
         $this.foreground = $ForegroundColor
         $this.background = $BackgroundColor
     }
+
 }
 
 
@@ -254,8 +350,10 @@ class FMPBlock {
     hidden [string]        $templatedText
     hidden [string]        $textTemplate
     hidden [scriptblock]   $refreshScript
-
-    hidden [bool]          $disableTheme = $false
+    hidden [bool]          $disableTheme        = $false
+    hidden [scriptblock]   $defaultScriptBlock  = { if($this.text){ return $this.text } }
+    hidden [string]        $defaultTextTemplate = '{0}'
+    hidden [FMPColorTheme] $defaultTheme        = [FMPColorTheme]::New()
 
     [void] Update () {
         $this.text = $this.refreshScript.Invoke()
@@ -273,12 +371,14 @@ class FMPBlock {
         }
     }
 
+
     [object] GetText(){
         if($null -eq $this.text -or $this.text -eq ''){
             return $null
         }
         return $this.text
     }
+
 
     [object] GetThemedText(){
         if($null -eq $this.text -or $this.text -eq ''){
@@ -287,6 +387,7 @@ class FMPBlock {
         return $this.themedText.GetThemedText()
     }
 
+
     [object] GetTemplatedText(){
         if($null -eq $this.text -or $this.text -eq ''){
             return $null
@@ -294,30 +395,36 @@ class FMPBlock {
         return $this.templatedText
     }
 
+
     [void] UpdateText ([string]$text){
         $this.text = $text
         $this.Update()
     }
+
 
     [void] UpdateTheme ([FMPColorTheme]$theme){
         $this.theme = $theme
         $this.Update()
     }
 
+
     [void] UpdateTextTemplate ([string]$textTemplate){
         $this.textTemplate = $textTemplate
         $this.Update()
     }
+
 
     [void] UpdateRefreshScript ([scriptblock]$refreshScript){
         $this.refreshScript = $refreshScript
         $this.Update()
     }
 
+
     static [void] DisableTheme ([FMPBlock]$block) {
         $block.theme.DisableTheme.Invoke()
         $block.Update.Invoke()
     }
+
 
     static [void] EnableTheme ([FMPBlock]$block) {
         $block.theme.EnableTheme.Invoke()
@@ -325,26 +432,26 @@ class FMPBlock {
     }
 
 
-    hidden [scriptblock]   $defaultScriptBlock  = { if($this.text){ return $this.text } }
-    hidden [string]        $defaultTextTemplate = '{0}'
-    hidden [FMPColorTheme] $defaultTheme        = [FMPColorTheme]::New()
-
     hidden Init ([string]$text) {
         $this.Init($text, $this.defaultTheme, $this.defaultTextTemplate, $this.defaultScriptBlock)
         [FMPBlock]::DisableTheme($this)
     }
 
+
     hidden Init ([string]$text, [FMPColorTheme]$theme) {
         $this.Init($text, $theme, $this.defaultTextTemplate, $this.defaultScriptBlock)
     }
+
     
     hidden Init ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate) {
         $this.Init($text, $theme, $textTemplate, $this.defaultScriptBlock)
     }
 
+
     hidden Init ([string]$text, [FMPColorTheme]$theme, [scriptblock]$refreshScript) {
         $this.Init($text, $theme, $this.defaultTextTemplate, $refreshScript)
     }
+
     
     hidden Init ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate, [scriptblock]$refreshScript) {
         $this.text = $text
@@ -364,13 +471,16 @@ class FMPBlock {
         $this.Update()
     }
 
+
     FMPBlock ([string]$text){
         $this.Init($text)
     }
 
+
     FMPBlock ([string]$text, [FMPColorTheme]$theme){
         $this.Init($text, $theme)
     }
+
 
     FMPBlock ([string]$text, [FMPColorTheme]$theme, [scriptblock]$refreshScript){
         $this.Init($text, $theme, $refreshScript)
@@ -379,6 +489,7 @@ class FMPBlock {
     FMPBlock ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate){
         $this.Init($text, $theme, $textTemplate)
     }
+
 
     FMPBlock ([string]$text, [FMPColorTheme]$theme, [string]$textTemplate, [scriptblock]$refreshScript){
         $this.Init($text, $theme, $textTemplate, $refreshScript)
@@ -427,14 +538,27 @@ function New-FMPBlock {
     return [FMPBlock]::new($text)
 }
 
+
+# DECLARE COLOR PALETTE
+$White     = [FMPColor]::new("White")
+$CoolWhite = [FMPColor]::new("AliceBlue")
+$WarmWhite = [FMPColor]::new("FloralWhite")
+$DimWhite  = [FMPColor]::new("Gainsboro")
+$DarkGray  = [FMPColor]::new("DimGray")
+$Green     = [FMPColor]::new("SeaGreen")
+$Blue      = [FMPColor]::new("DodgerBlue")
+$Orange    = [FMPColor]::new("Tomato")
+$Purple    = [FMPColor]::new("MediumPurple")
+
 # DECLARE THEMES
-$usernameTheme       = [FMPColorTheme]::new("DimGray", "White")
-$directoryTheme      = [FMPColorTheme]::new("AliceBlue", "DodgerBlue")
-$dateTheme           = [FMPColorTheme]::new("FloralWhite", "Tomato")
-$timeTheme           = [FMPColorTheme]::new("DimGray", "White")
-$gitGoodTheme        = [FMPColorTheme]::new("Gainsboro", "SeaGreen")
-$gitNoRemoteTheme    = [FMPColorTheme]::new("Gainsboro", "MediumPurple")
-$gitHasUpdatesTheme  = [FMPColorTheme]::new("Gainsboro", "Tomato")
+$usernameTheme       = [FMPColorTheme]::new($DarkGray,  $White)
+$directoryTheme      = [FMPColorTheme]::new($CoolWhite, $Blue )
+$dateTheme           = [FMPColorTheme]::new($WarmWhite, $Orange)
+$timeTheme           = [FMPColorTheme]::new($DarkGray,  $White)
+$gitGoodTheme        = [FMPColorTheme]::new($DimWhite,  $Green)
+$gitNoRemoteTheme    = [FMPColorTheme]::new($DimWhite,  $Purple)
+$gitHasUpdatesTheme  = [FMPColorTheme]::new($DimWhite,  $Orange)
+$promptSymbolTheme   = [FMPColorTheme]::new()
 
 <#
     $themedExampleConfig = @{
@@ -452,8 +576,8 @@ $themedUsernameConfig = @{
 }
 
 $themedDirectoryConfig = @{
-    theme        = $directoryTheme
-    textTemplate = '|>  {0}  ░░'
+    theme         = $directoryTheme
+    textTemplate  = '|>  {0}  ░░'
     refreshScript = {
         $numDirToShow = 3
         $currPath     = (get-location).Path
@@ -474,8 +598,8 @@ $themedDirectoryConfig = @{
 
 
 $themedGitBadgeConfig = @{
-    theme        = $gitGoodTheme
-    textTemplate = '| {0} '
+    theme         = $gitGoodTheme
+    textTemplate  = '| {0} '
     refreshScript = {
         return [GitParser]::StatusToString()
     }
@@ -483,8 +607,8 @@ $themedGitBadgeConfig = @{
 
 
 $themedDateConfig = @{
-    theme        = $dateTheme
-    textTemplate = '░░ {0} '
+    theme         = $dateTheme
+    textTemplate  = '░░ {0} '
     refreshScript = {
         return (Get-Date).ToString('dddd, MMMM d')
     }
@@ -499,7 +623,8 @@ $themedTimeConfig = @{
 }
 
 $themedPromptSymbolConfig = @{
-    text = 'PS> '
+    text  = 'PS> '
+    theme = $promptSymbolTheme
 }
 
 
