@@ -25,3 +25,6 @@
 - [ ] Create help
 - [ ] Create more examples
 - [ ] Create predefined themes for use
+
+## GitParser
+- [ ] add behind/ahead logic
