@@ -599,7 +599,7 @@ $themedDirectoryConfig = @{
 
 $themedGitBadgeConfig = @{
     theme         = $gitGoodTheme
-    textTemplate  = '| {0} '
+    textTemplate  = '  {0}  '
     refreshScript = {
         return [GitParser]::StatusToString()
     }
